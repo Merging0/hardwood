@@ -67,9 +67,9 @@ body{background:var(--bg);color:var(--text);font-family:'Barlow Condensed',sans-
 .team-name-edit{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;background:transparent;border:none;outline:none;width:100%;cursor:text;}
 .score-team.home .team-name-edit{color:var(--home);}
 .score-team.away .team-name-edit{color:var(--away);text-align:right;}
-.big-score{font-family:'Bebas Neue',sans-serif;font-size:76px;line-height:1;transition:transform .1s;}
-.home .big-score{color:var(--home);text-shadow:0 0 40px rgba(255,77,0,.25);}
-.away .big-score{color:var(--away);text-shadow:0 0 40px rgba(0,194,255,.25);}
+.big-score{font-family:'Bebas Neue',sans-serif;font-size:76px;line-height:1;transition:transform .1s;display:inline-block;}
+.home .big-score{color:var(--home);text-shadow:0 0 40px rgba(255,77,0,.25);transform-origin:left center;}
+.away .big-score{color:var(--away);text-shadow:0 0 40px rgba(0,194,255,.25);transform-origin:right center;}
 .big-score.bump{transform:scale(1.1);}
 .wl-record{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1px;}
 .score-btns{display:flex;gap:3px;flex-wrap:wrap;}
