@@ -265,6 +265,18 @@ tr:last-child td{border-bottom:none;}
 .transfer-opt.home-opt .transfer-opt-label{color:var(--home);}
 .transfer-opt.away-opt .transfer-opt-label{color:var(--away);}
 
+.qs-act-btn.miss{border-color:rgba(255,23,68,.3);color:var(--red);}
+.qs-act-btn.miss:active{background:rgba(255,23,68,.15);}
+
+/* ===== EDIT STAT MODAL ===== */
+.edit-stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+.edit-stat-row{background:var(--s2);border:1px solid var(--line2);border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;}
+.edit-stat-label{font-size:13px;font-weight:700;letter-spacing:1px;}
+.edit-stat-controls{display:flex;align-items:center;gap:8px;}
+.edit-stat-val{font-family:'Bebas Neue',sans-serif;font-size:24px;min-width:28px;text-align:center;color:var(--gold);}
+.edit-stat-btn{background:var(--s3);border:1px solid var(--line2);color:var(--text);width:26px;height:26px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;touch-action:manipulation;}
+.edit-stat-btn:active{background:var(--line2);}
+
 /* ===== STATS MODE TOGGLE ===== */
 .stats-mode-row{display:flex;gap:6px;margin-bottom:6px;}
 .stats-mode-btn{flex:1;background:var(--s2);border:1px solid var(--line2);color:var(--muted);border-radius:8px;padding:9px;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:2px;cursor:pointer;touch-action:manipulation;text-align:center;transition:all .15s;}
@@ -390,12 +402,19 @@ canvas{display:none;}
             <div class="qs-chips" id="qsAwayChips"><span class="qs-no-players">No players — add in Players tab</span></div>
           </div>
         </div>
-        <div class="qs-action-row">
+        <div class="qs-action-row" style="flex-wrap:wrap;gap:5px;">
           <button class="qs-act-btn pts3" ontouchstart="" onclick="qsScore(3)">+3</button>
           <button class="qs-act-btn pts2" ontouchstart="" onclick="qsScore(2)">+2</button>
-          <button class="qs-act-btn pts1" ontouchstart="" onclick="qsScore(1)">FT</button>
+          <button class="qs-act-btn pts1" ontouchstart="" onclick="qsScore(1)">FT✓</button>
+          <button class="qs-act-btn miss" ontouchstart="" onclick="qsStat('miss2')">2M✗</button>
+          <button class="qs-act-btn miss" ontouchstart="" onclick="qsStat('miss3')">3M✗</button>
+          <button class="qs-act-btn miss" ontouchstart="" onclick="qsStat('ftmiss')">FT✗</button>
           <button class="qs-act-btn reb" ontouchstart="" onclick="qsStat('reb')">REB</button>
           <button class="qs-act-btn ast" ontouchstart="" onclick="qsStat('ast')">AST</button>
+          <button class="qs-act-btn" style="border-color:rgba(255,255,255,.2);color:var(--text);" ontouchstart="" onclick="qsStat('stl')">STL</button>
+          <button class="qs-act-btn" style="border-color:rgba(255,255,255,.2);color:var(--text);" ontouchstart="" onclick="qsStat('blk')">BLK</button>
+          <button class="qs-act-btn" style="border-color:rgba(255,23,68,.2);color:var(--red);" ontouchstart="" onclick="qsStat('to')">T/O</button>
+          <button class="qs-act-btn" style="border-color:rgba(255,23,68,.2);color:var(--red);" ontouchstart="" onclick="qsStat('foul')">FOUL</button>
         </div>
       </div>
 
@@ -593,6 +612,18 @@ canvas{display:none;}
   </div>
 </div>
 
+<!-- EDIT STAT MODAL -->
+<div class="modal-bg" id="editStatModalBg">
+  <div class="modal">
+    <div class="modal-title" id="editStatTitle">EDIT STAT</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px;" id="editStatSubtitle"></div>
+    <div class="edit-stat-grid" id="editStatGrid"></div>
+    <div class="modal-btns" style="margin-top:14px;">
+      <button class="modal-btn cancel" onclick="closeModal('editStatModalBg')">DONE</button>
+    </div>
+  </div>
+</div>
+
 <!-- GAME STATS MODAL -->
 <div class="modal-bg" id="gameStatsModalBg">
   <div class="modal" style="max-height:90vh;overflow-y:auto;">
@@ -761,7 +792,29 @@ function toggleClock(){
     G.timer=setInterval(()=>{
       if(G.clockSec>0) G.clockSec--;
       if(G.shotSec>0) G.shotSec--;
-      if(G.clockSec===0){G.running=false;clearInterval(G.timer);}
+      if(G.clockSec===0){
+        G.running=false;clearInterval(G.timer);
+        // Auto-advance quarter
+        if(G.qtr<4){
+          setTimeout(()=>{
+            const next=G.qtr+1;
+            addLog(null,`Q${G.qtr} ended — Q${next} starting`,null);
+            G.qtr=next;
+            G.clockSec=720; G.shotSec=24;
+            G.teams.home.fouls=0; G.teams.away.fouls=0; // reset team fouls per quarter
+            renderScoreboard();
+            showToast(`Q${G.qtr} STARTED`);
+          },800);
+        } else {
+          // Game over - Q4 ended
+          setTimeout(()=>{
+            addLog(null,'🏁 GAME OVER',null);
+            showToast('🏁 GAME OVER — UPDATING CAREER STATS');
+            updateCareerStatsFromGame();
+            renderScoreboard();
+          },800);
+        }
+      }
       document.getElementById('gameClock').textContent=fmtTime(G.clockSec);
       document.getElementById('gameClock').classList.toggle('running',G.running);
       const sc=document.getElementById('shotClk');
@@ -776,15 +829,60 @@ function resetClock(){G.running=false;clearInterval(G.timer);G.clockSec=720;rend
 function resetShot(s){G.shotSec=s;document.getElementById('shotClk').textContent=s;document.getElementById('shotClk').classList.remove('warn');}
 function changeQtr(d){
   G.qtr=Math.max(1,Math.min(4,G.qtr+d));
-  if(d>0){G.clockSec=720;G.running=false;clearInterval(G.timer);addLog(null,`Quarter ${G.qtr} begins`,null);}
+  if(d>0){G.clockSec=720;G.shotSec=24;G.running=false;clearInterval(G.timer);addLog(null,`Quarter ${G.qtr} begins`,null);}
   renderScoreboard();
+}
+
+// Auto-update career stats when game ends naturally
+function updateCareerStatsFromGame(){
+  // Find the active live game in schedule if any, finalize it
+  const liveGame=G.schedule.find(g=>g.status==='live');
+  if(liveGame){
+    liveGame.status='final';
+    liveGame.homeScore=G.teams.home.score;
+    liveGame.awayScore=G.teams.away.score;
+    liveGame.playerSnapshot=[];
+    ['home','away'].forEach(team=>{
+      G.teams[team].players.forEach(p=>{
+        liveGame.playerSnapshot.push({
+          team,name:p.name,num:p.num,
+          pts:p.stats.pts,reb:p.stats.reb,ast:p.stats.ast,
+          stl:p.stats.stl,blk:p.stats.blk,to:p.stats.to,
+          fgm:p.stats.fgm,fga:p.stats.fga,
+          fg3m:p.stats.fg3m,fg3a:p.stats.fg3a,
+          ftm:p.stats.ftm,fta:p.stats.fta
+        });
+      });
+    });
+    renderWinLoss();
+    renderSchedule();
+    saveGame();
+  }
 }
 
 // ============ SCOREBOARD ============
 function addScore(team,pts){
   G.teams[team].score=Math.max(0,G.teams[team].score+pts);
-  if(pts>0) addLog(team,`+${pts} pts`,pts);
-  else addLog(team,'Score correction',pts);
+  if(pts>0){
+    addLog(team,`+${pts} pts`,pts);
+  } else {
+    // Score correction: also undo the selected player's most recent scoring stat
+    const p=getSelectedPlayer();
+    if(p && G.selectedPlayer && G.selectedPlayer.team===team){
+      const s=p.stats; const qs=s.byQtr[G.qtr];
+      const absPts=Math.abs(pts);
+      // Reduce pts stat
+      s.pts=Math.max(0,s.pts-absPts); qs.pts=Math.max(0,(qs.pts||0)-absPts);
+      // Reduce FG attempt/make (best guess: reduce 2pt first)
+      if(absPts===3){s.fg3m=Math.max(0,s.fg3m-1);s.fg3a=Math.max(0,s.fg3a-1);qs.fg3m=Math.max(0,(qs.fg3m||0)-1);qs.fg3a=Math.max(0,(qs.fg3a||0)-1);}
+      else if(absPts===2){s.fgm=Math.max(0,s.fgm-1);s.fga=Math.max(0,s.fga-1);qs.fgm=Math.max(0,(qs.fgm||0)-1);qs.fga=Math.max(0,(qs.fga||0)-1);}
+      else if(absPts===1){s.ftm=Math.max(0,s.ftm-1);s.fta=Math.max(0,s.fta-1);qs.ftm=Math.max(0,(qs.ftm||0)-1);qs.fta=Math.max(0,(qs.fta||0)-1);}
+      addLog(team,`Score correction — ${p.name} stat reversed`,pts);
+      renderAllPlayers();
+    } else {
+      addLog(team,'Score correction (no player selected)',pts);
+    }
+  }
   bump(team+'Score');
   document.getElementById(team+'Score').textContent=G.teams[team].score;
 }
@@ -1061,6 +1159,59 @@ function showQtr(q){
   renderStatsTable();
 }
 function ma(m,a){return `${m||0}/${a||0}`;}
+
+// ---- Edit stat modal ----
+const EDITABLE_STATS=[
+  {key:'pts',label:'PTS'},{key:'reb',label:'REB'},{key:'ast',label:'AST'},
+  {key:'stl',label:'STL'},{key:'blk',label:'BLK'},{key:'to',label:'T/O'},
+  {key:'foul',label:'FOULS'},{key:'fgm',label:'FGM'},{key:'fga',label:'FGA'},
+  {key:'fg3m',label:'3PM'},{key:'fg3a',label:'3PA'},{key:'ftm',label:'FTM'},{key:'fta',label:'FTA'}
+];
+
+function openEditStat(team, playerId){
+  const p=G.teams[team].players.find(x=>x.id===playerId);
+  if(!p) return;
+  const s=G.statsView==='total'?p.stats:(p.stats.byQtr[G.statsView]);
+  document.getElementById('editStatTitle').textContent=`EDIT: ${p.name}`;
+  document.getElementById('editStatSubtitle').textContent=`#${p.num} · ${G.statsView==='total'?'Full Game':`Q${G.statsView}`} Stats`;
+  const grid=document.getElementById('editStatGrid');
+  grid.innerHTML='';
+  EDITABLE_STATS.forEach(stat=>{
+    const row=document.createElement('div');
+    row.className='edit-stat-row';
+    row.innerHTML=`
+      <span class="edit-stat-label">${stat.label}</span>
+      <div class="edit-stat-controls">
+        <button class="edit-stat-btn" onclick="adjustStat('${team}',${playerId},'${stat.key}',-1,'${G.statsView}')">−</button>
+        <span class="edit-stat-val" id="esv-${stat.key}">${s[stat.key]||0}</span>
+        <button class="edit-stat-btn" onclick="adjustStat('${team}',${playerId},'${stat.key}',1,'${G.statsView}')">+</button>
+      </div>`;
+    grid.appendChild(row);
+  });
+  document.getElementById('editStatModalBg').classList.add('open');
+}
+
+function adjustStat(team,playerId,key,delta,view){
+  const p=G.teams[team].players.find(x=>x.id===playerId);
+  if(!p) return;
+  const s=view==='total'?p.stats:(p.stats.byQtr[view]);
+  if(!s) return;
+  s[key]=Math.max(0,(s[key]||0)+delta);
+  // Keep total in sync if editing a quarter
+  if(view!=='total'){
+    // Recalculate total from all quarters
+    const keys=EDITABLE_STATS.map(x=>x.key);
+    keys.forEach(k=>{
+      p.stats[k]=[1,2,3,4].reduce((sum,q)=>sum+(p.stats.byQtr[q][k]||0),0);
+    });
+  }
+  // Update the displayed value
+  const el=document.getElementById(`esv-${key}`);
+  if(el) el.textContent=s[key]||0;
+  renderAllPlayers();
+  renderStatsTable();
+}
+
 function renderStatsTable(){
   const body=document.getElementById('statsBody');
   body.innerHTML='';
@@ -1078,13 +1229,16 @@ function renderStatsTable(){
     players.forEach(p=>{
       const s=G.statsView==='total'?p.stats:(p.stats.byQtr[G.statsView]||{});
       const row=document.createElement('tr');
+      row.style.cursor='pointer';
+      row.title='Tap to edit stats';
       row.innerHTML=`
-        <td>${p.name}</td><td style="color:var(--muted)">${p.num}</td>
+        <td>${p.name} <span style="font-size:9px;color:var(--muted);">✏️</span></td><td style="color:var(--muted)">${p.num}</td>
         <td>${s.pts||0}</td><td>${s.reb||0}</td><td>${s.ast||0}</td>
         <td>${s.stl||0}</td><td>${s.blk||0}</td><td>${s.to||0}</td>
         <td class="pct-cell">${ma(s.fgm,s.fga)}</td>
         <td class="pct-cell">${ma(s.fg3m,s.fg3a)}</td>
         <td class="pct-cell">${ma(s.ftm,s.fta)}</td>`;
+      row.onclick=()=>openEditStat(team,p.id);
       body.appendChild(row);
     });
   });
@@ -1432,7 +1586,7 @@ function showToast(msg){
 // ============ MODAL KEYS ============
 document.getElementById('pNumInput').addEventListener('keydown',e=>{if(e.key==='Enter')confirmAddPlayer();});
 document.getElementById('pNameInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('pNumInput').focus();});
-['playerModalBg','transferModalBg','gameModalBg','gameStatsModalBg'].forEach(id=>{
+['playerModalBg','transferModalBg','gameModalBg','gameStatsModalBg','editStatModalBg'].forEach(id=>{
   document.getElementById(id).addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal(id);});
 });
 
